@@ -2,15 +2,15 @@
  Project: VideoPlayer API Library
  Author: Anders Xiao
  URL: https://github.com/endink/ffmepg_videoplayer
- License: GPLv3
+ License: GPLv3 (or LGPLv3)
 ===============================================
 
 This software consists of two parts:
 (1) VideoPlayer API Library (this project, written by Anders Xiao)
-(2) FFmpeg (Third-party library, used under LGPL/GPL license)
+(2) FFmpeg (third-party library, licensed under LGPL/GPL)
 
 -----------------------------------------------
- 1. License of VideoPlayer API Library
+ 1. License of the VideoPlayer API Library
 -----------------------------------------------
 The source code of the VideoPlayer API Library is released under:
 
@@ -18,17 +18,14 @@ The source code of the VideoPlayer API Library is released under:
     OR
     GNU Lesser General Public License version 3 (LGPLv3)
 
-(Choose one license and remove the other.)
+(Choose one license to apply to your project and remove the other.)
 
-The full text of these licenses is available at:
+The full license texts are available online:
 
     GPLv3:  https://www.gnu.org/licenses/gpl-3.0.html
     LGPLv3: https://www.gnu.org/licenses/lgpl-3.0.html
 
-You are free to use, modify and redistribute the VideoPlayer API Library
-according to the corresponding license terms.
-
-Full source code of this project is available at:
+The full source code of this project is available at:
     https://github.com/endink/ffmepg_videoplayer
 
 -----------------------------------------------
@@ -36,52 +33,51 @@ Full source code of this project is available at:
 -----------------------------------------------
 This software uses FFmpeg, a free software project licensed under
 the GNU Lesser General Public License (LGPL) version 2.1 or later,
-or (if configured with --enable-gpl) the GNU General Public License (GPL) version 2.
+or, if configured with --enable-gpl, the GNU General Public License (GPL) version 2.
 
-The FFmpeg source code is available at:
+The official FFmpeg source code is available at:
+    https://github.com/FFmpeg/FFmpeg
     https://ffmpeg.org/
 
-If your build of FFmpeg has been configured with GPL components,
-this makes the entire binary covered by the GPL license.
-
-This distribution includes statically linked FFmpeg binaries.
-Under the terms of the LGPL/GPL, the full corresponding source code
-of the FFmpeg version used to build these binaries can be obtained from:
+This distribution contains statically linked FFmpeg binaries.
+Under the terms of the LGPL/GPL, the corresponding source code of the
+FFmpeg version used to build these binaries may be obtained from:
 
     https://github.com/FFmpeg/FFmpeg
 
-Alternatively, you may request the same FFmpeg source code
-from the author for a period of three years from the date of this distribution.
+Alternatively, you may request the same FFmpeg source code from the author
+for a period of three years from the date of this distribution.
 
 -----------------------------------------------
- 3. License Compatibility Note
+ 3. License Compatibility Notes
 -----------------------------------------------
-Because FFmpeg was statically linked into this DLL:
+Because FFmpeg was statically linked into the VideoPlayer DLL:
 
-- If FFmpeg was built with LGPL components:
-      The VideoPlayer API Library may be distributed under LGPL or GPL.
-      Source code is provided so relinking is possible.
+- If FFmpeg was built **without** GPL components (LGPL mode):
+      The VideoPlayer API Library may be distributed under LGPLv3 or GPLv3.
+      Source code of this project is provided so that users may relink
+      the library with a modified version of FFmpeg if desired.
 
-- If FFmpeg was built with GPL components:
-      The entire VideoPlayer API Library is covered by GPL and must be GPL.
+- If FFmpeg was built **with** GPL components:
+      The entire VideoPlayer API Library must be distributed under GPLv3.
 
 -----------------------------------------------
  4. No Warranty
 -----------------------------------------------
-THIS SOFTWARE IS PROVIDED “AS IS” WITHOUT WARRANTY OF ANY KIND,
+THIS SOFTWARE IS PROVIDED “AS IS” WITHOUT ANY WARRANTY OF ANY KIND,
 INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF
-MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, OR NON-INFRINGEMENT.
 
 -----------------------------------------------
  5. Third-Party License References
 -----------------------------------------------
-FFmpeg license details:
+FFmpeg legal and licensing information:
     https://ffmpeg.org/legal.html
 
-GNU GPL v3 License:
+GNU GPLv3 license text:
     https://www.gnu.org/licenses/gpl-3.0.html
 
-GNU LGPL v3 License:
+GNU LGPLv3 license text:
     https://www.gnu.org/licenses/lgpl-3.0.html
 
 -----------------------------------------------
