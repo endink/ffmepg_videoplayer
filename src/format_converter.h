@@ -26,8 +26,8 @@ struct FormatConverter {
         : srcWidth(width), srcHeight(height), scale(scale), distPixelFormat(dstFormat)
     {
         // 计算目标宽高
-        distWidth = (scale > 0) ? static_cast<int>(width * scale) : width;
-        distHeight = (scale > 0) ? static_cast<int>(height * scale) : height;
+        distWidth = (scale > 0 && scale  != 1.0f) ? static_cast<int>(width * scale) : width;
+        distHeight = (scale > 0 && scale != 1.0f) ? static_cast<int>(height * scale) : height;
 
         // 分配帧
         bufferFrame = av_frame_alloc();

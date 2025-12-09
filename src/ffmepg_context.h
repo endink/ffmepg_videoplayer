@@ -29,13 +29,15 @@ struct FFmpegContext {
 	int64_t one_second_time = 0;
 	int actualFrameWidth = 0;
 	int actualFrameHeight = 0;
+	int originWidth = 0;
+	int originHeight = 0;
 	int videoFrameSizeInBytes = 0;
 	/*
 	  pts unit
 	*/
 	int64_t keyFrameGapTime = 0;
 	double decoderFPS = 0;
-	std::string mime;
+	std::string codecName;
 
 	bool LoadVideoProperties(bool testDeocderFPS);
 

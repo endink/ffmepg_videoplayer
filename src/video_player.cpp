@@ -120,7 +120,7 @@ VP_API void GetFrameInfo(const VideoFrame* frame, VideoFrameInfo* out_info) {
 
 VP_API void GetFrameData(const VideoFrame* frame, uint8_t* dist_data) {
 	if (frame && dist_data) {
-		CopyRgbaData(frame->AvFrame, dist_data, frame->Width, frame->Height, frame->Rotation);
+		CopyRgbaDataRotated(frame->AvFrame, dist_data, frame->Width, frame->Height, frame->Rotation);
 	}
 }
 /* -----------------------
@@ -192,120 +192,103 @@ VideoPlayerErrorCode processDecodedVideoFrame(VideoPlayer* player, AVFrame* fram
    ----------------------- */
 void VideoPlayer::LoopPlay()
 {
-	// Early validate: context must be present. If not, exit.
+	// 早期检查 Context
 	{
 		std::lock_guard<std::mutex> lock(Mutex);
-		if (!Context || !Context->avformatContext) {
+		if (!Context || !Context->avformatContext || Context->videoStreamIdx < 0 || !Context->videoCodecContext) {
 			LogError("Invalid video player context in LoopPlay");
 			IsRunning = false;
 			return;
 		}
 	}
 
-	AVFormatContext* fmt = nullptr;
-	AVStream* stream = nullptr;
-	AVCodecContext* codecCtx = nullptr;
-
-	// copy pointers under lock to local variables so we can release lock for decoding
-	{
-		std::lock_guard<std::mutex> lock(Mutex);
-		fmt = Context->avformatContext;
-		stream = (Context->videoStreamIdx >= 0) ? fmt->streams[Context->videoStreamIdx] : nullptr;
-		codecCtx = Context->videoCodecContext;
-	}
-
-	if (!fmt || !stream || !codecCtx) {
-		LogError("Missing fmt/stream/codec in LoopPlay");
-		return;
-	}
-
+	AVFormatContext* fmt = Context->avformatContext;
+	AVStream* stream = fmt->streams[Context->videoStreamIdx];
+	AVCodecContext* codecCtx = Context->videoCodecContext;
 	int videoIndex = Context->videoStreamIdx;
 
-	// compute initial wallclock baseline (if CurrentTimeMills set, use it)
-	int64_t start_time_us = -1;
-	{
-		int64_t curMs = CurrentTimeMills.load();
-		if (curMs > 0) {
-			start_time_us = av_gettime() - (curMs * 1000);
-		}
-		else {
-			start_time_us = -1;
-		}
-	}
+	int64_t start_time_us = av_gettime(); // wallclock 起点
+	int64_t first_pts_us = -1;            // 视频起始 pts 对应 wallclock
+	int64_t last_pts_us = 0;
 
 	AVPacket* packet = av_packet_alloc();
-	auto* frame = av_frame_alloc();
+	AVFrame* frame = av_frame_alloc();
 
 	while (IsRunning.load())
 	{
-		int read = av_read_frame(fmt, packet);
+		int ret = av_read_frame(fmt, packet);
 
-		if (read == AVERROR_EOF) {
-			// loop: seek to start and continue
+		if (ret == AVERROR_EOF) {
+			// 循环播放
 			av_seek_frame(fmt, videoIndex, 0, AVSEEK_FLAG_BACKWARD);
 			avcodec_flush_buffers(codecCtx);
+			first_pts_us = -1;
 			continue;
 		}
 
-		if (read < 0) {
-			// small sleep to avoid busy loop on error
+		if (ret < 0) {
+			// 出错，短暂 sleep 避免 busy loop
 			av_usleep(1000 * 5);
 			continue;
 		}
 
-		if (packet->stream_index == videoIndex)
+		if (packet->stream_index != videoIndex) {
+			av_packet_unref(packet);
+			continue;
+		}
+
+		// 解码视频包
+		if (avcodec_send_packet(codecCtx, packet) < 0) {
+			av_packet_unref(packet);
+			continue;
+		}
+
+		while (avcodec_receive_frame(codecCtx, frame) == 0)
 		{
-			if (avcodec_send_packet(codecCtx, packet) < 0)
-			{
-				av_packet_unref(packet);
-				continue;
+			int64_t pts = ff_get_best_effort_timestamp(frame);
+			if (pts == AV_NOPTS_VALUE) pts = 0;
+
+			// PTS -> 微秒
+			int64_t pts_us = static_cast<int64_t>(pts * av_q2d(stream->time_base) * 1000000.0);
+
+			if (first_pts_us < 0) {
+				first_pts_us = pts_us;
+				start_time_us = av_gettime(); // 对齐 wallclock
 			}
 
-			while (avcodec_receive_frame(codecCtx, frame) == 0)
-			{
-				int64_t pts = ff_get_best_effort_timestamp(frame);
-				if (pts < 0) pts = 0;
+			// 视频应该显示的时间（wallclock） = pts_us - first_pts_us + start_time_us
+			int64_t target_us = pts_us - first_pts_us + start_time_us;
+			int64_t now_us = av_gettime();
 
-				double pts_sec = pts * av_q2d(stream->time_base);
-				int64_t pts_us = (int64_t)(pts_sec * 1000000.0);
+			int64_t delay_us = target_us - now_us;
 
-				if (start_time_us < 0)
-				{
-					// first frame: set baseline using CurrentTimeMills if present
-					int64_t curMs = CurrentTimeMills.load();
-					if (curMs > 0) {
-						start_time_us = av_gettime() - (curMs * 1000);
-					}
-					else {
-						start_time_us = av_gettime();
-					}
-				}
-
-				int64_t now_us = av_gettime() - start_time_us;
-
-				// Wait to match pts timeline
-				if (pts_us > now_us) {
-					av_usleep(pts_us - now_us);
-				}
-
-				// update current time (atomic)
-				int64_t t = (int64_t)(pts_sec * 1000.0);
-				CurrentTimeMills.store(t);
-				// process frame (frame callback)
-				processDecodedVideoFrame(this, frame);
+			if (delay_us > 0) {
+				// 当前时间比目标时间早，等待
+				av_usleep(delay_us);
 			}
+			else if (delay_us < -30000) {
+				// 当前落后超过 30ms，跳帧赶上
+				// 可选：记录丢帧数量
+			}
+
+			// 更新 CurrentTimeMills
+			int64_t t_ms = static_cast<int64_t>((pts_us - first_pts_us) / 1000);
+			CurrentTimeMills.store(t_ms);
+
+			// 处理帧回调
+			processDecodedVideoFrame(this, frame);
+
+			last_pts_us = pts_us;
 		}
 
 		av_packet_unref(packet);
 	}
 
+	av_frame_free(&frame);
 	av_packet_free(&packet);
-
-	// free local frame if we allocated it
-	if (frame) {
-		av_frame_free(&frame);
-	}
 }
+
+
 
 /* -----------------------
    C API functions (Open/Close/Pause/Resume/Seek)
@@ -430,8 +413,8 @@ VP_API bool Open(VideoPlayer* player, const char* file, VideoPlayerOptions optio
 		}
 
 		player->FormatConverter = std::make_unique<FormatConverter>(
-			player->Context->actualFrameWidth,
-			player->Context->actualFrameHeight,
+			player->Context->originWidth,
+			player->Context->originHeight,
 			dstFmt,
 			options.FrameScale);
 
@@ -446,6 +429,8 @@ VP_API bool Open(VideoPlayer* player, const char* file, VideoPlayerOptions optio
 		player->Worker = std::thread(&VideoPlayer::LoopPlay, player);
 	}
 
+	auto* pctx = player->Context.get();
+	LogInfo("Got video info, size: %lld * %lld, fps: %.2f, rotation: %d, codec: %s", pctx->actualFrameWidth, pctx->actualFrameHeight, pctx->frameRate, pctx->videoRotation, pctx->codecName.c_str());
 	// notify video info callback outside lock
 	if (player->Options.VideoInfoCallback && player->VideoInfo) {
 		player->Options.VideoInfoCallback(player->VideoInfo.get(), player->UserData);

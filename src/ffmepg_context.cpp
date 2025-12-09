@@ -231,8 +231,9 @@ bool FFmpegContext::LoadVideoProperties(bool testDeocderFPS)
 	one_second_time = (int64_t)av_q2d(av_inv_q(timebase));
 	durationInSeconds = durationInStreamTimebase * av_q2d(timebase);
 	videoRotation = GetAvStreamRotateAngle(*this);
-	actualFrameWidth = videoCodecContext->width;
-	actualFrameHeight = videoCodecContext->height;
+	originWidth = videoCodecContext->width;
+	originHeight = videoCodecContext->height;
+	codecName = std::string(codec->name);
 
 	videoFormat = static_cast<AVPixelFormat>(codecpar->format);
 
@@ -244,9 +245,15 @@ bool FFmpegContext::LoadVideoProperties(bool testDeocderFPS)
 
 	if (abs(videoRotation) == 90 || abs(videoRotation) == 270)
 	{
-		actualFrameWidth = videoCodecContext->height;
-		actualFrameHeight = videoCodecContext->width;
+		actualFrameWidth = originHeight;
+		actualFrameHeight = originWidth;
 	}
+	else 
+	{
+		actualFrameWidth = originWidth;
+		actualFrameHeight = originHeight;
+	}
+
 	auto& self = *this;
 	keyFrameGapTime = GetKeyFrameInterval(self);
 	if (testDeocderFPS) {

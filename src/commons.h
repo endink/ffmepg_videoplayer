@@ -123,7 +123,7 @@ do \
 #define RTN_FALSE_IF_NEGATIVE_VERBOSE(Result, ErrorMessage, VerboseMessage) RETURN_IF_ERROR(Result, < 0, false, ErrorMessage, nullptr)
 
 
-VideoPlayerErrorCode CopyRgbaData(AVFrame* frame, uint8_t* distBuffer, int width, int height, int rotate);
+VideoPlayerErrorCode CopyRgbaDataRotated(AVFrame* frame, uint8_t* distBuffer, int width, int height, int rotate);
 
 static inline int RoundUp(int numToRound, int multiple) {
 	return (numToRound + multiple - 1) & -multiple;
