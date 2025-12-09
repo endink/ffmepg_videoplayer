@@ -1,4 +1,7 @@
-﻿#pragma once
+﻿// Copyright (c) 2025 Anders Xiao. All rights reserved.
+// https://github.com/endink
+
+#pragma once
 #include <stdint.h>
 
 #if defined(_MSC_VER)

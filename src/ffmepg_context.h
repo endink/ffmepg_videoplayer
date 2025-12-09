@@ -1,3 +1,6 @@
+// Copyright (c) 2025 Anders Xiao. All rights reserved.
+// https://github.com/endink
+
 #pragma once
 #include <string>
 extern "C" {

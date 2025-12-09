@@ -1,3 +1,6 @@
+// Copyright (c) 2025 Anders Xiao. All rights reserved.
+// https://github.com/endink
+
 #include "ffmepg_context.h"
 #include "commons.h" 
 

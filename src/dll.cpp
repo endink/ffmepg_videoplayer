@@ -1,5 +1,5 @@
-﻿// VideoPlayer.cpp : Defines the entry point for the application.
-//
+﻿// Copyright (c) 2025 Anders Xiao. All rights reserved.
+// https://github.com/endink
 
 #include <string>
 
