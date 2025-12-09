@@ -126,7 +126,6 @@ int GetKeyFrameInterval(FFmpegContext& context)
 	{
 		return -1;
 	}
-	context.Flush();
 	return time / (keyFramesCount - 1);
 }
 
@@ -162,6 +161,57 @@ int GetAvStreamRotateAngle(FFmpegContext& context)
 
 bool FFmpegContext::LoadVideoProperties(bool testDeocderFPS)
 {
+	videoStreamIdx = -1;
+	for (unsigned int i = 0; i < avformatContext->nb_streams; ++i) {
+		AVStream* stream = avformatContext->streams[i];
+		if (stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+			videoStreamIdx = i;
+			videoStream = stream;
+			break; 
+		}
+	}
+
+
+	if (videoStreamIdx < 0) {
+		LogError("No video stream found");
+		return false;
+	}
+	else {
+		LogInfo("Video stream index: %d", videoStreamIdx);
+	}
+
+
+	AVCodecParameters* codecpar = videoStream->codecpar;
+	const AVCodec* codec = avcodec_find_decoder(codecpar->codec_id);
+	if (!codec) {
+		LogError("Failed to find decoder for codec id %d", codecpar->codec_id);
+		return false;
+	}
+
+	AVCodecContext* codec_ctx = avcodec_alloc_context3(codec);
+	if (!codec_ctx) {
+		LogError("Failed to allocate AVCodecContext");
+		return false;
+	}
+
+	// 将流参数拷贝到 codec context
+	if (avcodec_parameters_to_context(codec_ctx, codecpar) < 0) {
+		LogError("Failed to copy codec parameters to context");
+		avcodec_free_context(&codec_ctx);
+		return false;
+	}
+
+	if (avcodec_open2(codec_ctx, codec, nullptr) < 0) {
+		LogError("Failed to open codec");
+		avcodec_free_context(&codec_ctx);
+		return false;
+	}
+
+	videoCodecContext = codec_ctx;
+
+	if (!videoStream) {
+		return false;
+	}
 	timebase = videoStream->time_base;
 	if (videoStream->duration > 0)
 	{
@@ -184,7 +234,6 @@ bool FFmpegContext::LoadVideoProperties(bool testDeocderFPS)
 	actualFrameWidth = videoCodecContext->width;
 	actualFrameHeight = videoCodecContext->height;
 
-	AVCodecParameters* codecpar = videoStream->codecpar;
 	videoFormat = static_cast<AVPixelFormat>(codecpar->format);
 
 	videoFrameSizeInBytes = av_image_get_buffer_size(
@@ -208,17 +257,6 @@ bool FFmpegContext::LoadVideoProperties(bool testDeocderFPS)
 	return true;
 }
 
-void FFmpegContext::Flush() const
-{
-	if (videoCodecContext)
-	{
-		avcodec_flush_buffers(videoCodecContext);
-	}
-	if (audioCodecContext)
-	{
-		avcodec_flush_buffers(audioCodecContext);
-	}
-}
 
 void FFmpegContext::SeekToStart() const
 {
@@ -282,7 +320,9 @@ FFmpegContext::~FFmpegContext()
 	}
 
 	if (ioContext) {
+		av_freep(&ioContext->buffer);
 		avio_context_free(&ioContext);
 		ioContext = nullptr;
 	}
+
 }

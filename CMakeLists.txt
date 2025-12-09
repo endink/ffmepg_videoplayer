@@ -124,4 +124,8 @@ install(TARGETS ${TARGET}
    RUNTIME DESTINATION ${LIB_INSTALL_DIR}
 )
 
+install(FILES $<TARGET_PDB_FILE:${TARGET}>
+        DESTINATION ${LIB_INSTALL_DIR}
+        OPTIONAL)
+
 install(FILES ${PROJECT_SOURCE_DIR}/src/videoplayer_c_api.h DESTINATION include)

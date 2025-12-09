@@ -11,9 +11,9 @@ extern "C" {
 
 
 struct FFmpegContext {
+	int IoBufferSize = 0;
 	AVIOContext* ioContext = nullptr;
 	AVFormatContext* avformatContext = nullptr;
-	const AVCodec* Codec = nullptr;
 	AVCodecContext* videoCodecContext = nullptr;
 	AVCodecContext* audioCodecContext = nullptr;
 	AVStream* videoStream = nullptr;
@@ -44,7 +44,6 @@ struct FFmpegContext {
 	}
 
 	void FillVideoInfo(VideoInfo& videoInfo) const;
-	void Flush() const;
 	void SeekToStart() const;
 
 
