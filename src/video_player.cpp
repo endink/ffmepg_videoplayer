@@ -391,6 +391,7 @@ VP_API bool Open(VideoPlayer* player, const char* file, VideoPlayerOptions optio
 		auto video_info = std::make_unique<VideoInfo>();
 		player->Context->FillVideoInfo(*video_info);
 		player->VideoInfo = std::move(video_info);
+		
 
 		AVPixelFormat srcFmt = AV_PIX_FMT_RGBA;
 		AVPixelFormat dstFmt = srcFmt;
@@ -420,6 +421,11 @@ VP_API bool Open(VideoPlayer* player, const char* file, VideoPlayerOptions optio
 
 		// set initial playing time to 0
 		player->CurrentTimeMills.store(0);
+
+		// notify video info callback outside lock
+		if (player->Options.VideoInfoCallback && player->VideoInfo) {
+			player->Options.VideoInfoCallback(player->VideoInfo.get(), player->UserData);
+		}
 	}
 
 	// start worker thread (not holding lock)
@@ -431,10 +437,7 @@ VP_API bool Open(VideoPlayer* player, const char* file, VideoPlayerOptions optio
 
 	auto* pctx = player->Context.get();
 	LogInfo("Got video info, size: %lld * %lld, fps: %.2f, rotation: %d, codec: %s", pctx->actualFrameWidth, pctx->actualFrameHeight, pctx->frameRate, pctx->videoRotation, pctx->codecName.c_str());
-	// notify video info callback outside lock
-	if (player->Options.VideoInfoCallback && player->VideoInfo) {
-		player->Options.VideoInfoCallback(player->VideoInfo.get(), player->UserData);
-	}
+	
 
 	return true;
 }

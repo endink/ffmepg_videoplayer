@@ -56,6 +56,12 @@ If (ANDROID)
   )
   
   set(ANDROID_STL c++_static)
+
+  # UE 使用 PIE + fPIC
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fexceptions -frtti -fPIC -fPIE")
+    set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}   -fPIC -fPIE")
+
 endif()
 
 file(GLOB_RECURSE SRC_FILES "src/*.cpp")
@@ -124,8 +130,10 @@ install(TARGETS ${TARGET}
    RUNTIME DESTINATION ${LIB_INSTALL_DIR}
 )
 
-install(FILES $<TARGET_PDB_FILE:${TARGET}>
+if(WIN32)
+    install(FILES $<TARGET_PDB_FILE:${TARGET}>
         DESTINATION ${LIB_INSTALL_DIR}
         OPTIONAL)
+endif()
 
 install(FILES ${PROJECT_SOURCE_DIR}/src/videoplayer_c_api.h DESTINATION include)

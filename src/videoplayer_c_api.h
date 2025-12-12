@@ -10,14 +10,9 @@
 #else
 #define VP_API __declspec(dllimport)
 #endif
-#elif defined(__GNUC__)
-#if defined(VIDEO_PLAYER_EXPORTS)
+#else
+  // Linux / Android / Clang
 #define VP_API __attribute__((visibility("default")))
-#else
-#define VP_API
-#endif
-#else
-#define VP_API
 #endif
 
 #ifdef __cplusplus

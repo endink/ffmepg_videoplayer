@@ -133,6 +133,8 @@ build_and_install() {
         find "$INSTALL_DIR" -type f -name "*.so" -o -name "*.a" | while read file; do
             echo "  $file"
             readelf -d $file | grep NEEDED
+            echo "Check function ..."
+            readelf -sW $file | grep "GetLibraryVersion"
         done
     fi
 }

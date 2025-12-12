@@ -12,72 +12,143 @@ extern "C" {
 
 float GetDecoderFPS(FFmpegContext& context)
 {
-	context.SeekToStart();
+	if (!context.avformatContext || !context.videoCodecContext) {
+		return 0.0f;
+	}
+
+	// 记录当前的位置（应该为0）
+	int64_t initialPos = -1;
+	if (context.avformatContext->pb) {
+		initialPos = avio_tell(context.avformatContext->pb);
+		LogDebug("Initial position before FPS test: %lld", (long long)initialPos);
+	}
+
+	// 重置解码器内部状态
+	avcodec_flush_buffers(context.videoCodecContext);
+
+	const int targetFrames = 10;   // More accurate
 	int frameCount = 0;
+	bool hasError = false;
+
 	AVPacket* packet = av_packet_alloc();
 	AVFrame* frame = av_frame_alloc();
 
 	double start = GetTimestampMills();
-	bool hasError = false;
-	while (frameCount < 10)
-	{
 
+	while (frameCount < targetFrames && !hasError)
+	{
 		int ret = av_read_frame(context.avformatContext, packet);
-		if (ret == AVERROR_EOF)
-		{
-			break;
-		}
-		if (ret != 0)
-		{
-			LogDebug("av_read_frame: %s", getAvError(ret));
+		if (ret == AVERROR_EOF) break;
+		if (ret < 0) {
+			LogError("av_read_frame failed: %s", getAvError(ret));
 			hasError = true;
 			break;
 		}
 
+		if (packet->stream_index != context.videoStreamIdx) {
+			av_packet_unref(packet);
+			continue;
+		}
 
-		if (packet->stream_index == context.videoStreamIdx)
-		{
-			LogDebug("test frame: %d", frameCount);
-			// while(true) {
-			// 	if(avcodec_receive_frame(context.videoCodecContext, frame) != 0) {
-			// 		break;
-			// 	}
-			// 	av_frame_unref(frame);
-			// }
-			ret = avcodec_send_packet(context.videoCodecContext, packet);
-			if (ret < 0)
-			{
-				LogDebug("avcodec_send_packet: %s", getAvError(ret));
-				hasError = true;
-				break;
-			}
+		ret = avcodec_send_packet(context.videoCodecContext, packet);
+		av_packet_unref(packet);
+		if (ret < 0 && ret != AVERROR(EAGAIN)) {
+			LogError("avcodec_send_packet failed: %s", getAvError(ret));
+			hasError = true;
+			break;
+		}
 
+		// Try to receive frames
+		while (frameCount < targetFrames) {
 			ret = avcodec_receive_frame(context.videoCodecContext, frame);
-			if (ret == AVERROR(EAGAIN)) {
-				continue;
-			}
-			if (ret != 0)
-			{
-				LogDebug("avcodec_receive_frame: %s", getAvError(ret));
+
+			if (ret == AVERROR(EAGAIN)) break;
+			if (ret == AVERROR_EOF) break;
+			if (ret < 0) {
+				LogError("avcodec_receive_frame failed: %s", getAvError(ret));
 				hasError = true;
 				break;
 			}
+
 			frameCount++;
 			av_frame_unref(frame);
 		}
-		av_packet_unref(packet);
 	}
+
+	// Drain decoder - 确保所有缓存帧都被处理
+	avcodec_send_packet(context.videoCodecContext, nullptr);
+	while (avcodec_receive_frame(context.videoCodecContext, frame) == 0) {
+		frameCount++;
+		av_frame_unref(frame);
+	}
+
+	double elapsed = GetTimestampMills() - start;
 
 	av_packet_free(&packet);
 	av_frame_free(&frame);
-	if (hasError)
-	{
-		LogDebug("test fps failed");
-		return 0.0f;
+
+	// 关键部分：恢复到原始位置（应该是0）
+	// 不要使用 SeekToStart()，因为它是 const 方法且可能有问题
+	// 直接在这里执行 seek 操作
+
+	// 方法1：使用 av_seek_frame
+	if (context.avformatContext && context.videoStreamIdx >= 0) {
+		int ret = av_seek_frame(context.avformatContext,
+			context.videoStreamIdx,
+			0,
+			AVSEEK_FLAG_BACKWARD);
+		if (ret < 0) {
+			LogError("Failed to seek to start after FPS test: %s", getAvError(ret));
+
+			// 方法2：如果方法1失败，尝试使用 avformat_seek_file
+			ret = avformat_seek_file(context.avformatContext,
+				-1,  // 自动选择流
+				INT64_MIN,
+				0,
+				INT64_MAX,
+				AVSEEK_FLAG_BACKWARD);
+			if (ret < 0) {
+				LogError("avformat_seek_file also failed: %s", getAvError(ret));
+			}
+			else {
+				LogDebug("Successfully restored position using avformat_seek_file");
+			}
+		}
+		else {
+			LogDebug("Successfully restored position using av_seek_frame");
+		}
 	}
-	LogDebug("test fps, frames: %ld, time: %.lf", (frameCount * 1000), (GetTimestampMills() - start));
-	return (float)((frameCount * 1000) / (GetTimestampMills() - start));
+
+	// 再次刷新解码器，确保状态干净
+	avcodec_flush_buffers(context.videoCodecContext);
+
+	// 如果有音频解码器，也刷新它
+	if (context.audioCodecContext) {
+		avcodec_flush_buffers(context.audioCodecContext);
+	}
+
+	// 验证位置是否正确恢复
+	if (context.avformatContext->pb) {
+		int64_t currentPos = avio_tell(context.avformatContext->pb);
+		LogDebug("Position after restoration: %lld (initial was: %lld)",
+			(long long)currentPos, (long long)initialPos);
+
+		// 如果位置差很多，可能需要重新打开流
+		if (initialPos >= 0 && abs(currentPos - initialPos) > 1000) {
+			LogWarning("Position not properly restored (diff: %lld)",
+				(long long)(currentPos - initialPos));
+		}
+	}
+
+	if (hasError || elapsed <= 0.0 || frameCount == 0)
+		return 0.0f;
+
+	float fps = (float)((frameCount * 1000.0) / elapsed);
+	LogDebug("Measured FPS: %.2f (frames=%d, elapsed=%.2fms)", fps, frameCount, elapsed);
+
+	return fps;
 }
+
 
 
 int GetKeyFrameInterval(FFmpegContext& context)
@@ -267,17 +338,27 @@ bool FFmpegContext::LoadVideoProperties(bool testDeocderFPS)
 
 void FFmpegContext::SeekToStart() const
 {
-	if (videoStreamIdx >= 0 && avformatContext)
-	{
-		av_seek_frame(avformatContext, videoStreamIdx, 0, AVSEEK_FLAG_BACKWARD);
-		avcodec_flush_buffers(videoCodecContext);
-		LogDebug("Video stream flushed.");
+	int ret = 0;
+	if (videoStreamIdx >= 0 && avformatContext) {
+		ret = av_seek_frame(avformatContext, videoStreamIdx, 0, AVSEEK_FLAG_BACKWARD);
+		if (ret < 0) {
+			LogError("Failed to seek video stream: %s", getAvError(ret));
+		}
+		else {
+			avcodec_flush_buffers(videoCodecContext);
+			LogDebug("Video stream flushed.");
+		}
 	}
-	if (audioStreamIdx >= 0 && audioCodecContext)
-	{
-		av_seek_frame(avformatContext, audioStreamIdx, 0, AVSEEK_FLAG_BACKWARD);
-		avcodec_flush_buffers(audioCodecContext);
-		LogDebug("Audio stream flushed.");
+
+	if (audioStreamIdx >= 0 && audioCodecContext) {
+		ret = av_seek_frame(avformatContext, audioStreamIdx, 0, AVSEEK_FLAG_BACKWARD);
+		if (ret < 0) {
+			LogError("Failed to seek audio stream: %s", getAvError(ret));
+		}
+		else {
+			avcodec_flush_buffers(audioCodecContext);
+			LogDebug("Audio stream flushed.");
+		}
 	}
 }
 

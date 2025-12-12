@@ -156,14 +156,14 @@ VideoPlayerErrorCode CopyRgbaDataRotated(AVFrame* frame, uint8_t* distBuffer, in
     int srcHeight = frame->height;
     int srcStride = frame->linesize[0];
     const int channels = 4;
-
+    auto r = rotate;
     for (int y = 0; y < srcHeight; ++y) {
         for (int x = 0; x < srcWidth; ++x) {
             const uint8_t* px = src + y * srcStride + x * channels;
 
             int dstX, dstY;
 
-            switch (rotate) {
+            switch (r) {
             case 0:
                 dstX = x;
                 dstY = y;
