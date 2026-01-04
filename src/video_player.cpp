@@ -97,6 +97,7 @@ static inline int64_t ff_get_best_effort_timestamp(const AVFrame* frame)
    ----------------------- */
 VP_API void GetFrameInfo(const VideoFrame* frame, VideoFrameInfo* out_info) {
 	if (frame && out_info) {
+
 		out_info->TimeMills = frame->TimeMills;
 		out_info->SizeInBytes = frame->Width * frame->Height * 4;
 		out_info->Width = frame->Width;
@@ -120,7 +121,7 @@ VP_API void GetFrameInfo(const VideoFrame* frame, VideoFrameInfo* out_info) {
 
 VP_API void GetFrameData(const VideoFrame* frame, uint8_t* dist_data) {
 	if (frame && dist_data) {
-		CopyRgbaDataRotated(frame->AvFrame, dist_data, frame->Width, frame->Height, frame->Rotation);
+		CopyRgbaDataRotated(frame->AvFrame, dist_data, frame->Rotation);
 	}
 }
 /* -----------------------
@@ -163,18 +164,21 @@ VideoPlayerErrorCode processDecodedVideoFrame(VideoPlayer* player, AVFrame* fram
 	pts_sec = pts * av_q2d(player->Context->avformatContext->streams[player->Context->videoStreamIdx]->time_base);
 
 	AVFrame* avFrame = frame;
-	if ((avFrame->format != AV_PIX_FMT_RGBA && avFrame->format != AV_PIX_FMT_BGRA) || player->Options.FrameScale != 1.0f) {
+
+
+	if ((avFrame->format != AV_PIX_FMT_RGBA && avFrame->format != AV_PIX_FMT_BGRA) || player->FormatConverter->scale != 1.0f) {
 		player->FormatConverter->Convert(frame);
 		avFrame = player->FormatConverter->convertedFrame;
 	}
 
-	int rotate = 0 - player->Context->videoRotation;
-	rotate = rotate >= 0 ? rotate : 360 + rotate;
+
+
+	int rotate = player->Context->videoRotation;
 
 	VideoFrame vf;
 	vf.AvFrame = avFrame;
-	vf.Height = player->Context->actualFrameHeight;
-	vf.Width = player->Context->actualFrameWidth;
+	vf.Width = avFrame->width;
+	vf.Height = avFrame->height;
 	vf.Rotation = rotate;
 	vf.Context = player->Context.get();
 	vf.TimeMills = (int64_t)(pts_sec * 1000);
@@ -390,6 +394,7 @@ VP_API bool Open(VideoPlayer* player, const char* file, VideoPlayerOptions optio
 
 		auto video_info = std::make_unique<VideoInfo>();
 		player->Context->FillVideoInfo(*video_info);
+
 		player->VideoInfo = std::move(video_info);
 		
 
@@ -413,11 +418,22 @@ VP_API bool Open(VideoPlayer* player, const char* file, VideoPlayerOptions optio
 			}
 		}
 
+
+		float scale = 1.0f;
+		if (options.MaxWidth > 0 && options.MaxeHeight > 0)
+		{
+			scale = CalcLimitScale(player->Context->originWidth, player->Context->originHeight, options.MaxWidth, options.MaxeHeight);
+		}
+
 		player->FormatConverter = std::make_unique<FormatConverter>(
 			player->Context->originWidth,
 			player->Context->originHeight,
 			dstFmt,
-			options.FrameScale);
+			scale);
+
+		player->VideoInfo->OutputWidth = static_cast<int32_t>(player->Context->actualFrameWidth * scale);
+		player->VideoInfo->OutputHeight = static_cast<int32_t>(player->Context->actualFrameHeight * scale);
+
 
 		// set initial playing time to 0
 		player->CurrentTimeMills.store(0);
@@ -436,7 +452,17 @@ VP_API bool Open(VideoPlayer* player, const char* file, VideoPlayerOptions optio
 	}
 
 	auto* pctx = player->Context.get();
-	LogInfo("Got video info, size: %lld * %lld, fps: %.2f, rotation: %d, codec: %s", pctx->actualFrameWidth, pctx->actualFrameHeight, pctx->frameRate, pctx->videoRotation, pctx->codecName.c_str());
+	LogInfo("Got video info, resolution: %lld * %lld, size: %s, fps: %.2f, rotation: %d, codec: %s, format: %s, decoder fps: %.2f, seekable: %s, scale: %.2f", 
+		pctx->originWidth, 
+		pctx->originHeight, 
+		DisplayDataSize(player->IO->SizeInBytes()).c_str(),
+		pctx->frameRate, 
+		pctx->videoRotation, 
+		pctx->codecName.c_str(),
+		av_get_pix_fmt_name(pctx->videoFormat),
+		pctx->decoderFPS,
+		player->IO->Seekable() ? "true": "false",
+		player->FormatConverter ? player->FormatConverter->scale : 1.0f);
 	
 
 	return true;

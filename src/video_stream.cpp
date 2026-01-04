@@ -300,24 +300,24 @@ VideoFileDescriptorStream::VideoFileDescriptorStream(int file_descriptor)
 
 VideoFileDescriptorStream::~VideoFileDescriptorStream()
 {
-    if (fd > 0) {
-        if (close(fd) == 0) {
-            LogDebug("File descriptor %d closed successfully.\n", fd);
-        }
-        else {
-            // 根据errno判断错误类型
-            if (errno == EBADF) {
-                LogError("Error: File descriptor %d is invalid.\n", fd);
-            }
-            else if (errno == EINTR) {
-                LogError("Error: Close was interrupted by a signal. You may retry.\n");
-            }
-            else {
-                LogError("Error: Failed to close file descriptor %d.\n", fd);
-            }
-        }
-        valid = false;
-    }
+    //if (fd > 0) {
+    //    if (close(fd) == 0) {
+    //        LogDebug("File descriptor %d closed successfully.\n", fd);
+    //    }
+    //    else {
+    //        // 根据errno判断错误类型
+    //        if (errno == EBADF) {
+    //            LogError("Error: File descriptor %d is invalid.\n", fd);
+    //        }
+    //        else if (errno == EINTR) {
+    //            LogError("Error: Close was interrupted by a signal. You may retry.\n");
+    //        }
+    //        else {
+    //            LogError("Error: Failed to close file descriptor %d.\n", fd);
+    //        }
+    //    }
+    //    valid = false;
+    //}
 }
 
 bool VideoFileDescriptorStream::Seekable()

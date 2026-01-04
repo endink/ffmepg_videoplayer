@@ -208,7 +208,7 @@ int GetAvStreamRotateAngle(FFmpegContext& context)
 	{
 		int angle = atoi(tag->value);
 		angle %= 360;
-		return angle;
+		return NormalizeRotation(angle);
 	}
 	else
 	{
@@ -222,7 +222,7 @@ int GetAvStreamRotateAngle(FFmpegContext& context)
 				{
 					auto value = av_display_rotation_get(reinterpret_cast<const int32_t*>(data.data));
 					auto angle = ((int)round(value)) % 360;
-					return angle;
+					return NormalizeRotation(angle);
 				}
 			}
 		}
@@ -366,8 +366,8 @@ void FFmpegContext::FillVideoInfo(VideoInfo& videoInfo) const
 {
 	videoInfo.Fps = this->frameRate;
 	videoInfo.DurationMills = (int64_t)round(this->durationInSeconds * 1000);
-	videoInfo.VideoWidth = this->actualFrameWidth;
-	videoInfo.VideoHeight = this->actualFrameHeight;
+	videoInfo.VideoWidth = this->originWidth;
+	videoInfo.VideoHeight = this->originHeight;
 	videoInfo.TotalFrames = this->videoStream->nb_frames;
 	videoInfo.Rotation = this->videoRotation;
 	videoInfo.DecoderFPS = this->decoderFPS;

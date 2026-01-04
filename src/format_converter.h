@@ -90,6 +90,7 @@ private:
 
         frame->width = width;
         frame->height = height;
+        frame->format = format;
 
         int numBytes = av_image_get_buffer_size(format, width, height, 1);
         if (numBytes <= 0) {

@@ -8,6 +8,12 @@
 #include <ctime>       // struct tm
 #include <cstddef>     // nullptr
 #include <vector>
+
+#include <cmath>
+#include <cstdint>
+#include <sstream>
+#include <iomanip>
+#include <algorithm>
 extern "C" {
     #include <libavutil/error.h>
 }
@@ -146,7 +152,7 @@ const char* getAvError(int error_code)
     return buf;
 }
 
-VideoPlayerErrorCode CopyRgbaDataRotated(AVFrame* frame, uint8_t* distBuffer, int outWidth, int outHeight, int rotate)
+VideoPlayerErrorCode CopyRgbaDataRotated(AVFrame* frame, uint8_t* distBuffer, int rotate)
 {
     if (!frame || !frame->data[0] || !distBuffer)
         return VideoPlayerErrorCode::kErrorCode_Invalid_Param;
@@ -156,7 +162,13 @@ VideoPlayerErrorCode CopyRgbaDataRotated(AVFrame* frame, uint8_t* distBuffer, in
     int srcHeight = frame->height;
     int srcStride = frame->linesize[0];
     const int channels = 4;
+
+    // 仅在这里补出 outWidth（不改变原有逻辑）
+    int outWidth = (rotate == 90 || rotate == 270) ? srcHeight : srcWidth;
+    // outHeight 原逻辑未使用，可不声明
+
     auto r = rotate;
+
     for (int y = 0; y < srcHeight; ++y) {
         for (int x = 0; x < srcWidth; ++x) {
             const uint8_t* px = src + y * srcStride + x * channels;
@@ -168,7 +180,7 @@ VideoPlayerErrorCode CopyRgbaDataRotated(AVFrame* frame, uint8_t* distBuffer, in
                 dstX = x;
                 dstY = y;
                 break;
-            case 90:
+            case 270:
                 dstX = srcHeight - 1 - y;
                 dstY = x;
                 break;
@@ -176,7 +188,7 @@ VideoPlayerErrorCode CopyRgbaDataRotated(AVFrame* frame, uint8_t* distBuffer, in
                 dstX = srcWidth - 1 - x;
                 dstY = srcHeight - 1 - y;
                 break;
-            case 270:
+            case 90:
                 dstX = y;
                 dstY = srcWidth - 1 - x;
                 break;
@@ -190,4 +202,63 @@ VideoPlayerErrorCode CopyRgbaDataRotated(AVFrame* frame, uint8_t* distBuffer, in
     }
 
     return VideoPlayerErrorCode::kErrorCode_Success;
+}
+
+
+std::string DisplayDataSize(int64_t Bytes, int Precision)
+{
+    static const char* Units[] = { "B", "KB", "MB", "GB", "TB", "PB" };
+    static const int UnitCount = sizeof(Units) / sizeof(Units[0]);
+
+    if (Bytes < 0)
+    {
+        return "0 B";
+    }
+
+    double Size = static_cast<double>(Bytes);
+    int UnitIndex = 0;
+
+    while (Size >= 1000.0 && UnitIndex < UnitCount - 1)
+    {
+        Size /= 1000.0;
+        ++UnitIndex;
+    }
+
+    std::ostringstream Oss;
+    Oss << std::fixed << std::setprecision(Precision) << Size << " " << Units[UnitIndex];
+    return Oss.str();
+}
+
+float CalcLimitScale(int TextureWidth, int TextureHeight, int MaxWidth, int MaxHeight)
+{
+    // 参数非法或不需要缩放
+    if (TextureWidth <= 0 || TextureHeight <= 0 ||
+        MaxWidth <= 0 || MaxHeight <= 0)
+    {
+        return 1.0f;
+    }
+
+    // 判断横竖方向
+    const bool textureLandscape = TextureWidth >= TextureHeight;
+    const bool maxLandscape = MaxWidth >= MaxHeight;
+
+    // 横竖不一致时，交换最大尺寸
+    if (textureLandscape != maxLandscape)
+    {
+        std::swap(MaxWidth, MaxHeight);
+    }
+
+    // 计算缩放比例
+    float scaleW = static_cast<float>(MaxWidth) / TextureWidth;
+    float scaleH = static_cast<float>(MaxHeight) / TextureHeight;
+
+    float scale = std::min(scaleW, scaleH);
+
+    // 不放大，只缩小
+    if (scale >= 1.0f || scale <= 0.0f)
+    {
+        return 1.0f;
+    }
+
+    return scale;
 }
