@@ -1,0 +1,20 @@
+# Keep this list in sync with VP_API declarations in src/videoplayer_c_api.h.
+{
+    global:
+        GetLibraryVersion;
+        SetVideoPlayerLogCallback;
+        CreateVideoPlayer;
+        DestroyVideoPlayer;
+        GetFrameInfo;
+        GetFrameData;
+        Open;
+        Close;
+        Pause;
+        Resume;
+        IsRunning;
+        GetPlayingMills;
+        GetDurationMills;
+        SeekToPercent;
+    local:
+        *;
+};

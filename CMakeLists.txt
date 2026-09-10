@@ -82,6 +82,21 @@ target_compile_definitions(${TARGET}
     PRIVATE VIDEO_PLAYER_EXPORTS
 )
 
+if (ANDROID)
+    # VP_API keeps the public C entry points visible. Hide implementation
+    # symbols, including those pulled in from static libc++ and FFmpeg.
+    set_target_properties(${TARGET} PROPERTIES
+        C_VISIBILITY_PRESET hidden
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN YES
+    )
+    set(VIDEOPLAYER_EXPORTS "${CMAKE_CURRENT_SOURCE_DIR}/videoplayer.exports.map")
+    # LINK_FLAGS preserves compatibility with the CMake 3.8 minimum above.
+    set_property(TARGET ${TARGET} APPEND_STRING PROPERTY LINK_FLAGS
+        " -Wl,--version-script=\"${VIDEOPLAYER_EXPORTS}\" -Wl,--exclude-libs,ALL -Wl,--no-undefined-version")
+    set_property(TARGET ${TARGET} APPEND PROPERTY LINK_DEPENDS "${VIDEOPLAYER_EXPORTS}")
+endif()
+
 if (WIN32)
     target_compile_definitions(${TARGET} PRIVATE
         AVFORMAT_STATIC
