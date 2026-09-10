@@ -10,14 +10,9 @@
 #else
 #define VP_API __declspec(dllimport)
 #endif
-#elif defined(__GNUC__)
-#if defined(VIDEO_PLAYER_EXPORTS)
+#else
+  // Linux / Android / Clang
 #define VP_API __attribute__((visibility("default")))
-#else
-#define VP_API
-#endif
-#else
-#define VP_API
 #endif
 
 #ifdef __cplusplus
@@ -48,6 +43,8 @@ extern "C" {
         int64_t  TotalFrames;
         int32_t  VideoWidth;
         int32_t  VideoHeight;
+        int32_t  OutputWidth;
+        int32_t  OutputHeight;
         int32_t  AudioChannels;
         int32_t  AudioSampleRate;
         float    Fps;
@@ -69,9 +66,10 @@ extern "C" {
     typedef struct VideoPlayerOptions {
         uint8_t Mute;            // 0/1
         int64_t StartMills;
-        float   FrameScale;
         AvInfoCallback VideoInfoCallback;
         FrameCallback  FrameCallback;
+        int32_t MaxWidth;
+        int32_t MaxeHeight;
     } VideoPlayerOptions;
 
     // -----------------------------

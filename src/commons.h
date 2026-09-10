@@ -8,6 +8,7 @@
 
 // 平台检测宏
 #ifdef _WIN32
+#define NOMINMAX
 #include <windows.h>
 #define PLATFORM_WINDOWS 1
 #elif defined(__ANDROID__)
@@ -123,7 +124,7 @@ do \
 #define RTN_FALSE_IF_NEGATIVE_VERBOSE(Result, ErrorMessage, VerboseMessage) RETURN_IF_ERROR(Result, < 0, false, ErrorMessage, nullptr)
 
 
-VideoPlayerErrorCode CopyRgbaDataRotated(AVFrame* frame, uint8_t* distBuffer, int width, int height, int rotate);
+VideoPlayerErrorCode CopyRgbaDataRotated(AVFrame* frame, uint8_t* distBuffer, int rotate);
 
 static inline int RoundUp(int numToRound, int multiple) {
 	return (numToRound + multiple - 1) & -multiple;
@@ -136,4 +137,21 @@ static inline int64_t GetTimestampMills()
 	return duration_cast<milliseconds>(
 		system_clock::now().time_since_epoch()
 	).count();
+}
+
+std::string DisplayDataSize(int64_t Bytes, int Precision = 1);
+
+float CalcLimitScale(
+	int TextureWidth,
+	int TextureHeight,
+	int MaxWidth,
+	int MaxHeight
+);
+
+static inline int NormalizeRotation(int rotate)
+{
+	rotate %= 360;
+	if (rotate < 0)
+		rotate += 360;
+	return rotate;
 }

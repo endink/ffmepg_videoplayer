@@ -56,6 +56,12 @@ If (ANDROID)
   )
   
   set(ANDROID_STL c++_static)
+
+  # UE 使用 PIE + fPIC
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fexceptions -frtti -fPIC -fPIE")
+    set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}   -fPIC -fPIE")
+
 endif()
 
 file(GLOB_RECURSE SRC_FILES "src/*.cpp")
@@ -75,6 +81,21 @@ target_sources(${TARGET} PRIVATE ${HEADER_FILES})
 target_compile_definitions(${TARGET}
     PRIVATE VIDEO_PLAYER_EXPORTS
 )
+
+if (ANDROID)
+    # VP_API keeps the public C entry points visible. Hide implementation
+    # symbols, including those pulled in from static libc++ and FFmpeg.
+    set_target_properties(${TARGET} PROPERTIES
+        C_VISIBILITY_PRESET hidden
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN YES
+    )
+    set(VIDEOPLAYER_EXPORTS "${CMAKE_CURRENT_SOURCE_DIR}/videoplayer.exports.map")
+    # LINK_FLAGS preserves compatibility with the CMake 3.8 minimum above.
+    set_property(TARGET ${TARGET} APPEND_STRING PROPERTY LINK_FLAGS
+        " -Wl,--version-script=\"${VIDEOPLAYER_EXPORTS}\" -Wl,--exclude-libs,ALL -Wl,--no-undefined-version")
+    set_property(TARGET ${TARGET} APPEND PROPERTY LINK_DEPENDS "${VIDEOPLAYER_EXPORTS}")
+endif()
 
 if (WIN32)
     target_compile_definitions(${TARGET} PRIVATE
@@ -124,8 +145,10 @@ install(TARGETS ${TARGET}
    RUNTIME DESTINATION ${LIB_INSTALL_DIR}
 )
 
-install(FILES $<TARGET_PDB_FILE:${TARGET}>
+if(WIN32)
+    install(FILES $<TARGET_PDB_FILE:${TARGET}>
         DESTINATION ${LIB_INSTALL_DIR}
         OPTIONAL)
+endif()
 
 install(FILES ${PROJECT_SOURCE_DIR}/src/videoplayer_c_api.h DESTINATION include)
