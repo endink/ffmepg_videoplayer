@@ -1,4 +1,4 @@
-@echo on
+@echo off
 chcp 65001
 
 setlocal EnableDelayedExpansion
@@ -83,6 +83,17 @@ if EXIST "%build_directory%" (
         pause
         exit /b 1
     )
+)
+
+@rem Read the SDK selected by CMake from the generated Visual Studio project.
+set "CMAKE_SELECTED_WINDOWS_SDK="
+for /f "tokens=*" %%L in ('findstr /c:"<WindowsTargetPlatformVersion>" "%build_directory%\videoplayer.vcxproj"') do (
+    for /f "tokens=2 delims=<>" %%V in ("%%L") do set "CMAKE_SELECTED_WINDOWS_SDK=%%V"
+)
+if defined CMAKE_SELECTED_WINDOWS_SDK (
+    echo [INFO] CMake selected Windows SDK: !CMAKE_SELECTED_WINDOWS_SDK!
+) else (
+    echo [WARNING] Could not read the Windows SDK version from videoplayer.vcxproj.
 )
 
 @rem Build and install
